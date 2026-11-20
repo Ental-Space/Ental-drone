@@ -26,8 +26,8 @@ void setup() {
     pinMode(SEPAR2_PIN, OUTPUT);
     pinMode(BUZZER_PIN, OUTPUT);
 
-    pinMode(CONT1_PIN, INPUT_PULLUP);
-    pinMode(CONT2_PIN, INPUT_PULLUP);
+    pinMode(CONT1_PIN, INPUT);
+    pinMode(CONT2_PIN, INPUT);
     pinMode(SWITCH_PIN, INPUT_PULLUP);
 
     // CONFIG:

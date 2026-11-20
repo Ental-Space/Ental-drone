@@ -235,6 +235,7 @@ void StateLoops::loraLoop() {
         // Tx:
         if (loraTimer.check()) {
 
+            Serial.println("LORA LECI");
             loraString = String(glob.memory.callsign) + String(";") + glob.dataFrame.toString();
             LoRa.beginPacket();
             LoRa.println(loraString);
