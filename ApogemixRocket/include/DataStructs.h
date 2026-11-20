@@ -71,12 +71,8 @@ struct DataFrame {
     float pressure;
     float altitude;
     float speed;
-    float accelX;
-    float accelY;
-    float accelZ;
-    float gyroX;
-    float gyroY;
-    float gyroZ;
+    float accelMagnitude;
+    float accelDeviation;
     bool continuity1 : 1;
     bool continuity2 : 1;
     bool mosState    : 1;
@@ -89,9 +85,9 @@ struct DataFrame {
         continuities |= (continuity1 << 0) | (continuity2 << 1) | (mosState << 2);
 
         char data[200];
-        snprintf(data, sizeof(data), "%0.4f;%0.4f;%0.1f;%lu;%0.1f;%0.1f;%0.1f;%0.1f;%d;%d;%0.1f;%0.1f;%0.1f;%0.1f;%0.1f;%0.1f",
+        snprintf(data, sizeof(data), "%0.4f;%0.4f;%0.1f;%lu;%0.1f;%0.1f;%0.1f;%0.1f;%d;%d;%0.2f;%0.2f",
                  gpsLat, gpsLng, gpsAlt, (unsigned long)time, temper, pressure, altitude, speed,
-                 continuities, (int)rocketState, accelX, accelY, accelZ, gyroX, gyroY, gyroZ);
+                 continuities, (int)rocketState, accelMagnitude, accelDeviation);
         return String(data);
     }
 };

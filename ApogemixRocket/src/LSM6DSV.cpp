@@ -4,20 +4,18 @@ namespace {
 constexpr uint8_t REG_CTRL3_C = 0x12;
 constexpr uint8_t REG_CTRL1_XL = 0x10;
 constexpr uint8_t REG_CTRL2_G = 0x11;
-constexpr uint8_t REG_CTRL6_C = 0x15;
 constexpr uint8_t REG_CTRL8_XL = 0x17;
-constexpr uint8_t REG_OUTX_L_G = 0x22;
+constexpr uint8_t REG_OUTX_L_A = 0x28;
 constexpr uint8_t REG_WHO_AM_I = 0x0F;
 
 constexpr uint8_t LSM6DSV_WHO_AM_I = 0x70;
 constexpr uint8_t CTRL3_SW_RESET = 0x01;
 constexpr uint8_t CTRL3_BDU_IF_INC = 0x44;
 constexpr uint8_t ODR_120_HZ = 0x06;
-constexpr uint8_t GYRO_FS_4000_DPS = 0x0C;
 constexpr uint8_t ACCEL_FS_16_G = 0x03;
 
 constexpr float ACCEL_M_S2_PER_LSB = 0.000488f * 9.80665f;
-constexpr float GYRO_DPS_PER_LSB = 0.140f;
+constexpr float ACCEL_RAD_TO_DEG = 57.2957795131f;
 
 int16_t decodeInt16(const uint8_t *bytes) {
     const uint16_t value = uint16_t(bytes[0]) | (uint16_t(bytes[1]) << 8);
@@ -89,8 +87,7 @@ bool LSM6DSV::begin(uint8_t address, TwoWire *wire) {
                       address_, whoAmI);
     }
 
-    // Reset to a known state. In particular, the ±4000 dps range requires
-    // the OIS chain to be disabled, which is its reset default.
+    // Reset to a known state. The gyroscope remains disabled.
     if (!writeRegister(REG_CTRL3_C, CTRL3_SW_RESET)) return false;
 
     bool resetComplete = false;
@@ -108,8 +105,7 @@ bool LSM6DSV::begin(uint8_t address, TwoWire *wire) {
     // Keep a coherent multi-byte sample and enable register auto-increment.
     if (!writeRegister(REG_CTRL3_C, CTRL3_BDU_IF_INC) ||
         !writeRegister(REG_CTRL1_XL, ODR_120_HZ) ||
-        !writeRegister(REG_CTRL2_G, ODR_120_HZ) ||
-        !writeRegister(REG_CTRL6_C, GYRO_FS_4000_DPS) ||
+        !writeRegister(REG_CTRL2_G, 0x00) ||
         !writeRegister(REG_CTRL8_XL, ACCEL_FS_16_G)) {
         return false;
     }
@@ -119,21 +115,18 @@ bool LSM6DSV::begin(uint8_t address, TwoWire *wire) {
     return true;
 }
 
-bool LSM6DSV::readIMU(LSM6DSVData &data) {
+bool LSM6DSV::readAccelerometer(LSM6DSVData &data) {
     if (!initialized_) return false;
 
-    // Output registers are contiguous: gyro X/Y/Z followed by accel X/Y/Z.
-    uint8_t raw[12];
-    if (!readRegisters(REG_OUTX_L_G, raw, sizeof(raw))) return false;
+    uint8_t raw[6];
+    if (!readRegisters(REG_OUTX_L_A, raw, sizeof(raw))) return false;
 
-    LSM6DSVData sample;
-    sample.gyroX = float(decodeInt16(&raw[0])) * GYRO_DPS_PER_LSB;
-    sample.gyroY = float(decodeInt16(&raw[2])) * GYRO_DPS_PER_LSB;
-    sample.gyroZ = float(decodeInt16(&raw[4])) * GYRO_DPS_PER_LSB;
-    sample.accelX = float(decodeInt16(&raw[6])) * ACCEL_M_S2_PER_LSB;
-    sample.accelY = float(decodeInt16(&raw[8])) * ACCEL_M_S2_PER_LSB;
-    sample.accelZ = float(decodeInt16(&raw[10])) * ACCEL_M_S2_PER_LSB;
+    const float accelX = float(decodeInt16(&raw[0])) * ACCEL_M_S2_PER_LSB;
+    const float accelY = float(decodeInt16(&raw[2])) * ACCEL_M_S2_PER_LSB;
+    const float accelZ = float(decodeInt16(&raw[4])) * ACCEL_M_S2_PER_LSB;
+    const float horizontalMagnitude = sqrtf(accelX * accelX + accelY * accelY);
 
-    data = sample;
+    data.accelMagnitude = sqrtf(horizontalMagnitude * horizontalMagnitude + accelZ * accelZ);
+    data.accelDeviation = atan2f(horizontalMagnitude, fabsf(accelZ)) * ACCEL_RAD_TO_DEG;
     return true;
 }

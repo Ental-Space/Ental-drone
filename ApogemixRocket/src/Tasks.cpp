@@ -32,15 +32,11 @@ void Tasks::measure() {
     glob.dataFrame.pressure = getPressureMedian();
     glob.dataFrame.temper = bmp.readTemperature() * TEMPERATURE_FIX_A + TEMPERATURE_FIX_B;
 
-    // Accelerometer and gyroscope:
+    // Accelerometer magnitude and deviation from the vertical sensor axis:
     LSM6DSVData imuData;
-    if (imu.readIMU(imuData)) {
-        glob.dataFrame.accelX = imuData.accelX;
-        glob.dataFrame.accelY = imuData.accelY;
-        glob.dataFrame.accelZ = imuData.accelZ;
-        glob.dataFrame.gyroX = imuData.gyroX;
-        glob.dataFrame.gyroY = imuData.gyroY;
-        glob.dataFrame.gyroZ = imuData.gyroZ;
+    if (imu.readAccelerometer(imuData)) {
+        glob.dataFrame.accelMagnitude = imuData.accelMagnitude;
+        glob.dataFrame.accelDeviation = imuData.accelDeviation;
     }
 
     // Time:
