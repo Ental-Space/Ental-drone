@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include "BMP388.h"
+#include "LSM6DSV.h"
 #include <TinyGPS++.h>
 
 #include "PinDefinitions.h"
@@ -23,6 +24,7 @@ class Tasks {
 public:
 
     BMP388 bmp;
+    LSM6DSV imu;
     TinyGPSPlus gps;
 
     void buzzBeep(uint16_t activeTime, uint16_t sleepTime, uint8_t n);

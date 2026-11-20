@@ -21,6 +21,8 @@ void setup() {
     tasks.bmp.setTemperatureOversampling(BMP388_OS_2X);
     tasks.bmp.setPressureOversampling(BMP388_OS_16X);
     tasks.bmp.setOutputDataRate(BMP388_ODR_16_HZ);
+    tasks.imu.setDebug(false);
+    tasks.imu.begin(0x6B, &Wire);
 
     pinMode(SEPAR1_PIN, OUTPUT);
     pinMode(SEPAR2_PIN, OUTPUT);
