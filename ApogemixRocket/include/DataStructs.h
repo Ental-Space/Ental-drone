@@ -1,9 +1,8 @@
 #ifndef DATA_STRUCTS_H
 #define DATA_STRUCTS_H
 
-#define APOGEMIX_ID 0
-#define FIRMWARE_VERSION "0.1.0"
-#define GNSS_BAUD 115200
+#define FIRMWARE_VERSION "0.2.0"
+#define GNSS_BAUD 9600
 
 #define FLIGHTS_IN_MEM 30
 #define FRAMES_IN_Q 30
@@ -16,7 +15,17 @@
 #define TEMPERATURE_FIX_A 0.855
 #define TEMPERATURE_FIX_B (-1.188)
 #define WIFI_TIME_MS 600000
+#define WIFI_MODE_BUTTON 0
+#define WIFI_MODE_RAIL_LOOP 1
 #define CALLSIGN_LEN 11
+
+#define LORA_TX_PERIOD_MS 2137
+#define LORA_CHANNEL_ISM 0
+#define LORA_CHANNEL_HAM 1
+#define LORA_ISM_FREQUENCY_HZ 434625000L
+#define LORA_HAM_FREQUENCY_HZ 439000000L
+#define LORA_ISM_TX_POWER_DBM 14
+#define LORA_HAM_TX_POWER_DBM 20
 
 #include <stdint.h>
 
@@ -29,16 +38,16 @@ struct Flight {
 
 struct Memory {
 
+    uint16_t initializationMagic;
     uint8_t lastFlightIndex;
     uint16_t lastFlightNum;
     Flight flight[FLIGHTS_IN_MEM];
 
-    bool isCsvFile;
     bool isSep2Staging; // TODO test
     uint16_t stagingDelay; // TODO test
     uint16_t secondSeparAltitude;
-    uint16_t loraFreqMHz;
-    uint16_t loraDelay_ms;
+    uint8_t loraChannel;
+    uint8_t wifiMode;
     char callsign[CALLSIGN_LEN];
 };
 
@@ -73,7 +82,7 @@ struct DataFrame {
         uint8_t continuities = 0;
         continuities |= (continuity1 << 0) | (continuity2 << 1) | (mosState << 2);
 
-        char data[60];
+        char data[100];
         sprintf(data, "%0.4f;%0.4f;%0.1f;%d;%0.1f;%0.1f;%0.1f;%0.1f;%d;%d", gpsLat, gpsLng, gpsAlt, time, temper, pressure, altitude, speed, continuities, (int)rocketState);
         return String(data);
     }

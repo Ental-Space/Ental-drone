@@ -21,8 +21,8 @@ void StateLoops::ignitionLoop(bool apogee) {
 
     waitAndLogData(FIRE_TIME);
 
-    digitalWrite(SEPAR1_PIN, 0);
-    digitalWrite(SEPAR2_PIN, 0);
+    if (apogee) digitalWrite(SEPAR1_PIN, 0);
+    else digitalWrite(SEPAR2_PIN, 0);
 }
 
 /*********************************************************************/
@@ -47,25 +47,34 @@ void StateLoops::railLoop() {
     pressMeasureTimer.start(RAIL_FLIGHT_LOOP_TIME);
     Website website;
 
+    if (glob.memory.wifiMode == WIFI_MODE_RAIL_LOOP) {
+        website.start();
+    }
+
     while (1) {
+
+        if (website.shouldReboot()) {
+            if (website.isEnabled()) website.stop();
+            ESP.restart();
+        }
 
         if (pressMeasureTimer.check()) {
 
             dataLoop(0);
             if (tasks.isLaunchDetected()) {
-
-                if (website.isEnabled()) website.stop();
                 break;
             }
 
             // WiFi itp:
-            if (!digitalRead(SWITCH_PIN) && !website.isEnabled()
+            if (glob.memory.wifiMode == WIFI_MODE_BUTTON
+            && !digitalRead(SWITCH_PIN) && !website.isEnabled()
             ) {
 
                 website.start();
                 wifiTimer.start(WIFI_TIME_MS);
             }
-            if (website.isEnabled() && wifiTimer.check()) {
+            if (glob.memory.wifiMode == WIFI_MODE_BUTTON
+            && website.isEnabled() && wifiTimer.check()) {
 
                 website.stop();
             }
@@ -78,6 +87,14 @@ void StateLoops::railLoop() {
             if (strstr(rxDebugString.c_str(), "FORCE NEXT STATE")) break;
         }
     }
+
+    if (website.isRebootRequested()) {
+        while (!website.shouldReboot()) vTaskDelay(1 / portTICK_PERIOD_MS);
+        if (website.isEnabled()) website.stop();
+        ESP.restart();
+    }
+
+    if (website.isEnabled()) website.stop();
 }
 
 /*********************************************************************/
@@ -88,12 +105,15 @@ void StateLoops::flightLoop() {
 
     pressMeasureTimer.start(RAIL_FLIGHT_LOOP_TIME);
     stagingTimer.start(glob.memory.stagingDelay - STAGING_TIME_OFFSET_MS);
+    bool stagingIgnited = false;
 
     while(1) {
 
         if (pressMeasureTimer.check()) {
 
+            digitalWrite(BUZZER_PIN, 1);
             dataLoop(1);
+            digitalWrite(BUZZER_PIN, 0);
             if (glob.dataFrame.speed > 30) {
                 glob.isSep1BeforeApog = true;
             }
@@ -107,10 +127,10 @@ void StateLoops::flightLoop() {
         vTaskDelay(1 / portTICK_PERIOD_MS);
 
         // Staging:
-        if (glob.memory.isSep2Staging && stagingTimer.check()) {
+        if (glob.memory.isSep2Staging && !stagingIgnited && stagingTimer.check()) {
 
             ignitionLoop(0);
-            glob.memory.isSep2Staging = false;
+            stagingIgnited = true;
         }
 
         // DEBUG:
@@ -199,18 +219,23 @@ void StateLoops::loraLoop() {
     SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, LORA_CS_PIN);
     LoRa.setPins(LORA_CS_PIN, LORA_RES_PIN, LORA_D0_PIN);
     LoRa.setSignalBandwidth(125E3);
-    loraActive = LoRa.begin(glob.memory.loraFreqMHz * 1E6);
+    const bool useHamChannel = glob.memory.loraChannel == LORA_CHANNEL_HAM;
+    const long frequencyHz = useHamChannel ? LORA_HAM_FREQUENCY_HZ : LORA_ISM_FREQUENCY_HZ;
+    const int txPowerDbm = useHamChannel ? LORA_HAM_TX_POWER_DBM : LORA_ISM_TX_POWER_DBM;
+    loraActive = LoRa.begin(frequencyHz);
+    if (loraActive) LoRa.setTxPower(txPowerDbm);
     LoRa.setTimeout(100);
 
     tasks.buzz(loraActive ? 3 : 2);
 
-    loraTimer.start(glob.memory.loraDelay_ms);
+    loraTimer.start(LORA_TX_PERIOD_MS);
 
     while (loraActive) {
 
         // Tx:
         if (loraTimer.check()) {
 
+            Serial.println("LORA LECI");
             loraString = String(glob.memory.callsign) + String(";") + glob.dataFrame.toString();
             LoRa.beginPacket();
             LoRa.println(loraString);

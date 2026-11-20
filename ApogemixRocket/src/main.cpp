@@ -7,37 +7,33 @@ void setup() {
     Serial.begin(115200);
     Serial.setTimeout(10);
 
-    delay(3000);
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+
     Serial.print("Apogemix firmware version: ");
     Serial.println(FIRMWARE_VERSION);
 
     Serial1.begin(GNSS_BAUD, SERIAL_8N1, GPS_TX_PIN, GPS_RX_PIN);
 
     Wire.begin(SDA_PIN, SCL_PIN);
-    #ifdef BMP580
-    tasks.bmp.begin(BMP5XX_ALTERNATIVE_ADDRESS, &Wire);
-    tasks.bmp.setTemperatureOversampling(BMP5XX_OVERSAMPLING_2X);
-    tasks.bmp.setPressureOversampling(BMP5XX_OVERSAMPLING_16X);
-    tasks.bmp.setIIRFilterCoeff(BMP5XX_IIR_FILTER_COEFF_3);
-    tasks.bmp.setOutputDataRate(BMP5XX_ODR_10_HZ);
-    #else
-    tasks.bmp.begin(BMP085_HIGHRES, &Wire);
-    #endif
+
+    tasks.bmp.setDebug(false);
+    tasks.bmp.begin(0x76, &Wire);
+    tasks.bmp.setTemperatureOversampling(BMP388_OS_2X);
+    tasks.bmp.setPressureOversampling(BMP388_OS_16X);
+    tasks.bmp.setOutputDataRate(BMP388_ODR_16_HZ);
 
     pinMode(SEPAR1_PIN, OUTPUT);
     pinMode(SEPAR2_PIN, OUTPUT);
     pinMode(BUZZER_PIN, OUTPUT);
 
-    pinMode(CONT1_PIN, INPUT_PULLUP);
-    pinMode(CONT2_PIN, INPUT_PULLUP);
+    pinMode(CONT1_PIN, INPUT);
+    pinMode(CONT2_PIN, INPUT);
     pinMode(SWITCH_PIN, INPUT_PULLUP);
 
     // CONFIG:
     EEPROM.begin(sizeof(glob.memory));
     EEPROM.get(0, glob.memory);
-
-    // Only for first programming:
-    //tasks.clearMem();
+    tasks.prepareMem();
 
     tasks.readFlash();
     tasks.recalibrate();

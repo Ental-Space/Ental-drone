@@ -3,10 +3,10 @@
 
 #include <Globals.h>
 
-void clearMem();
+void prepareMem();
 
 void checkForNewFrequency(String command);
 
-void saveAndSetNewFrequency();
+bool updateFrequency(float frequencyMHz);
 
 #endif

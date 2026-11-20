@@ -1,9 +1,40 @@
 #include "Website.h"
 
+namespace {
+
+String makeApogemixSsid() {
+    static const char* months[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+    char monthName[4] = {};
+    int day = 0;
+    int year = 0;
+    sscanf(__DATE__, "%3s %d %d", monthName, &day, &year);
+
+    uint8_t month = 0;
+    for (uint8_t i = 0; i < 12; ++i) {
+        if (strcmp(monthName, months[i]) == 0) {
+            month = i + 1;
+            break;
+        }
+    }
+
+    const uint32_t macSuffix = static_cast<uint32_t>(ESP.getEfuseMac() & 0xFFFFFF);
+    char suffix[16];
+    snprintf(suffix, sizeof(suffix), "%06lX_%02d%02d%02d",
+             static_cast<unsigned long>(macSuffix), year % 100, month, day);
+    return String("APOGEMIX_") + suffix;
+}
+
+}
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 void Website::start() {
+
+    ssid = makeApogemixSsid();
 
     WiFi.mode(WIFI_AP);
     WiFi.setTxPower(WIFI_POWER_8_5dBm);
@@ -13,6 +44,11 @@ void Website::start() {
 
     Serial.println("server on");
     enabled = true;
+
+    if (routesRegistered) {
+        server.begin();
+        return;
+    }
 
     server.on("/", HTTP_GET, [this](AsyncWebServerRequest *request) {
 
@@ -24,10 +60,10 @@ void Website::start() {
         request->send(200, "text/html", glob.dataFrame.toString());
     });
 
-    server.on("/wifioff", HTTP_GET, [this](AsyncWebServerRequest *request) {
+    server.on("/reboot", HTTP_POST, [this](AsyncWebServerRequest *request) {
 
-        request->send(200, "text/html", String("<meta http-equiv=\"refresh\" content=\"0; URL=/\" />"));
-        stop();
+        request->send(202, "text/plain", "Restarting");
+        requestReboot();
     });
 
     server.on("/FlightData.apg", HTTP_GET, [this](AsyncWebServerRequest *request) {
@@ -93,6 +129,7 @@ void Website::start() {
             request->send(200);
         }
     );
+    routesRegistered = true;
 
     server.begin();
 }
@@ -104,7 +141,8 @@ void Website::start() {
 void Website::stop() {
 
     Serial.println("server off");
-    //WiFi.softAPdisconnect(true);
+    server.end();
+    WiFi.softAPdisconnect(true);
     enabled = false;
 }
 
@@ -121,13 +159,7 @@ void Website::handleArgs(AsyncWebServerRequest *request) {
             AsyncWebParameter* p = request->getParam(i);
 
             // Recovery params:
-            if (p->name() == "dataSave") {
-
-                if      (p->value() == "1") glob.memory.isCsvFile = 1;
-                else if (p->value() == "0") glob.memory.isCsvFile = 0;
-            }
-
-            else if (p->name() == "sep2Mode") {
+            if (p->name() == "sep2Mode") {
 
                 if      (p->value() == "1") glob.memory.isSep2Staging = 1;
                 else if (p->value() == "0") glob.memory.isSep2Staging = 0;
@@ -145,17 +177,21 @@ void Website::handleArgs(AsyncWebServerRequest *request) {
                 if (val >= 50 && val <= 5000) glob.memory.secondSeparAltitude = val;
             }
 
-            // Telemetry params:
-            else if (p->name() == "setLoraFreq") {
+            else if (p->name() == "wifiMode") {
 
-                uint16_t val = p->value().toInt();
-                if (val >= 100 && val <= 999) glob.memory.loraFreqMHz = val;
+                int val = p->value().toInt();
+                if (val == WIFI_MODE_BUTTON || val == WIFI_MODE_RAIL_LOOP) {
+                    glob.memory.wifiMode = static_cast<uint8_t>(val);
+                }
             }
 
-            else if (p->name() == "setLoRaDelay") {
+            // Telemetry params:
+            else if (p->name() == "setLoraChannel") {
 
                 uint16_t val = p->value().toInt();
-                if (val >= 500 && val <= 5000) glob.memory.loraDelay_ms = val;
+                if (val == LORA_CHANNEL_ISM || val == LORA_CHANNEL_HAM) {
+                    glob.memory.loraChannel = val;
+                }
             }
 
             else if (p->name() == "setCallSign" && p->value().length() >= 2) {

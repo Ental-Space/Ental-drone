@@ -14,16 +14,14 @@ class Website {
         SERVOS_SETTINGS
     };
 
-    #ifdef PRO
-    String ssid = String("Apogemix_pro_") + String(APOGEMIX_ID);
-    const char* password = "ApogemixPro";
-    #else
-    String ssid = String("Apogemix_") + String(APOGEMIX_ID);
+    String ssid;
     const char* password = "apogemix";
-    #endif
 
     AsyncWebServer server = AsyncWebServer(80);
     bool enabled = false;
+    bool routesRegistered = false;
+    volatile bool rebootRequested = false;
+    volatile uint32_t rebootRequestedAt = 0;
 
     String generateHtml();
     String generateSettingsPage(uint8_t settingsType);
@@ -33,6 +31,14 @@ class Website {
 public:
 
     bool isEnabled() { return enabled; }
+    bool isRebootRequested() { return rebootRequested; }
+    bool shouldReboot() {
+        return rebootRequested && millis() - rebootRequestedAt >= 250;
+    }
+    void requestReboot() {
+        rebootRequestedAt = millis();
+        rebootRequested = true;
+    }
     void start();
     void stop();
 };

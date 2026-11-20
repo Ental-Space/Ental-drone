@@ -53,6 +53,12 @@ String Website::generateHtml() {
                 .button:hover {
                     background-color: #0056b3;
                 }
+                .button-danger {
+                    background-color: #dc3545;
+                }
+                .button-danger:hover {
+                    background-color: #b02a37;
+                }
                 .gray-text {
                     color: #808080;
                 }
@@ -76,7 +82,6 @@ String Website::generateHtml() {
                     <p class="gray-text">Current settings:</p>
         )rawliteral";
 
-    html += "Flightdata file type: <strong>" + (glob.memory.isCsvFile ? String("csv") : String("binary")) + String("</strong><br>\n");
     html += "Pyro channel 2 mode: <strong>" + (glob.memory.isSep2Staging ? String("Staging") : String("Double deploy")) + String("</strong><br>\n");
 
     if (glob.memory.isSep2Staging) {
@@ -87,9 +92,18 @@ String Website::generateHtml() {
     }
 
     html += "Dual deploy altitude: <strong>" + String(glob.memory.secondSeparAltitude) + String("</strong>m<br>\n");
-    html += "Telemetry frequency: <strong>" + String(glob.memory.loraFreqMHz) + String("</strong>MHz<br>\n");
-    html += "Telemetry period: <strong>" + String(glob.memory.loraDelay_ms) + String("</strong>ms<br>\n");
+    const bool useHamChannel = glob.memory.loraChannel == LORA_CHANNEL_HAM;
+    html += "Radio channel: <strong>" + String(useHamChannel ? "Apogemix HAM license (439.000 MHz)" : "Apogemix ISM band (434.625 MHz)") + String("</strong><br>\n");
     html += "Telemetry callsign: <strong>" + String(glob.memory.callsign) + String("</strong><br>\n");
+    html += "WiFi mode: <strong>";
+    if (glob.memory.wifiMode == WIFI_MODE_RAIL_LOOP) {
+        html += "from the start until the end of the rail loop";
+    }
+    else {
+        html += "after pressing the button, for "
+            + String(WIFI_TIME_MS / 60000) + " minutes";
+    }
+    html += "</strong><br>\n";
 
     html += R"rawliteral(
             </div>
@@ -125,9 +139,18 @@ String Website::generateHtml() {
                     </div>
                 </div>
                 <div class="block">
-                    <a class="button" href="/wifioff">Turn off the wifi</a>
+                    <button class="button button-danger" id="rebootButton">Reboot ESP</button>
                 </div>
             </div>
+            <script>
+                document.getElementById("rebootButton").addEventListener("click", async function() {
+                    if (!confirm("Restart ApogemixRocket?")) return;
+                    this.disabled = true;
+                    try {
+                        await fetch("/reboot", { method: "POST" });
+                    } catch (error) {}
+                });
+            </script>
         </body>
         </html>
     )rawliteral";
@@ -211,18 +234,6 @@ String Website::generateSettingsPage(uint8_t settingsType) {
 
         html += "recovery</h3>\n\t\t<form>\n";
 
-        // Binary or CSV file save:
-        html += "<p>Save data binary (less size but, needs to be converted in ApogApka, required if the time in air could be longer than 15 min.)\
-            or csv (more size, but conversion not needed, good for flights <15 min.)</p>\n";
-        if (glob.memory.isCsvFile) {
-            html += "<input type='radio' name='dataSave' id='bin' value='0'><label for='0'>binary,</label><br>\n";
-            html += "<input type='radio' name='dataSave' id='csv' value='1' checked><label for='1'>csv.</label><br>\n";
-        }
-        else {
-            html += "<input type='radio' name='dataSave' id='bin' value='0' checked><label for='0'>binary,</label><br>\n";
-            html += "<input type='radio' name='dataSave' id='csv' value='1'><label for='1'>csv.</label><br>\n";
-        }
-
         // Separation 2 pin modes:
         html += "<p>Set the separation 2 pin mode (dual deploy at descent or second stage ignite at ascent):</p>\n";
         if (glob.memory.isSep2Staging) {
@@ -240,6 +251,16 @@ String Website::generateSettingsPage(uint8_t settingsType) {
             + String(glob.memory.secondSeparAltitude) + "</strong>m):</label><br>\n";
         html += "<input type='number' min='50' max='5000' name='setSecAlt'><br>\n";
 
+        // WiFi availability during the rail loop:
+        html += "<p>WiFi availability during the rail loop:</p>\n";
+        html += "<input type='radio' name='wifiMode' id='wifiButton' value='0'";
+        if (glob.memory.wifiMode == WIFI_MODE_BUTTON) html += " checked";
+        html += "><label for='wifiButton'>after pressing the button, for "
+            + String(WIFI_TIME_MS / 60000) + " minutes</label><br>\n";
+        html += "<input type='radio' name='wifiMode' id='wifiRailLoop' value='1'";
+        if (glob.memory.wifiMode == WIFI_MODE_RAIL_LOOP) html += " checked";
+        html += "><label for='wifiRailLoop'>from the start until the end of the rail loop</label><br>\n";
+
         break;
 
     /******************************/
@@ -247,14 +268,14 @@ String Website::generateSettingsPage(uint8_t settingsType) {
 
         html += "telemetry</h3>\n\t\t<form>\n";
 
-        // Transmitter modes:
-        html += "<label for='setLoraFreq'>LoRa frequency (Current: <strong>"
-            + String(glob.memory.loraFreqMHz) + "</strong>MHz):</label><br>\n";
-        html += "<input type='number' min='100' max='999' name='setLoraFreq'><br>\n";
-        html += "<label for='setLoRaDelay'>LoRa send period (Current: <strong>"
-            + String(glob.memory.loraDelay_ms) + "</strong>ms):</label><br>\n";
-        html += "<input type='number' min='500' max='5000' name='setLoRaDelay'><br>\n";
-        html += "<label for='setCallSign'>LoRa send period (Current: <strong>"
+        // Radio channel:
+        html += "<label for='setLoraChannel'>Radio channel (Current: <strong>"
+            + String(glob.memory.loraChannel == LORA_CHANNEL_HAM ? "Apogemix HAM" : "Apogemix ISM") + "</strong>):</label><br>\n";
+        html += "<select id='setLoraChannel' name='setLoraChannel'>\n";
+        html += "<option value='0'" + String(glob.memory.loraChannel != LORA_CHANNEL_HAM ? " selected" : "") + ">Apogemix ISM band 434.625 MHz</option>\n";
+        html += "<option value='1'" + String(glob.memory.loraChannel == LORA_CHANNEL_HAM ? " selected" : "") + ">Apogemix HAM license 439.000 MHz</option>\n";
+        html += "</select><br>\n";
+        html += "<label for='setCallSign'>LoRa callsign (Current: <strong>"
             + String(glob.memory.callsign) + "</strong>):</label><br>\n";
         html += "<input type='text' maxlength='10' name='setCallSign'><br>\n";
 
