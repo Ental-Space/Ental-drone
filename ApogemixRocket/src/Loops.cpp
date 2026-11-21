@@ -222,7 +222,7 @@ void StateLoops::loraLoop() {
     const bool useHamChannel = glob.memory.loraChannel == LORA_CHANNEL_HAM;
     const long frequencyHz = useHamChannel ? LORA_HAM_FREQUENCY_HZ : LORA_ISM_FREQUENCY_HZ;
     const int txPowerDbm = useHamChannel ? LORA_HAM_TX_POWER_DBM : LORA_ISM_TX_POWER_DBM;
-    //loraActive = LoRa.begin(frequencyHz);
+    loraActive = LoRa.begin(frequencyHz);
     if (loraActive) LoRa.setTxPower(txPowerDbm);
     LoRa.setTimeout(100);
 
