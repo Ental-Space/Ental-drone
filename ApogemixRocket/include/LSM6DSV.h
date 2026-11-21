@@ -6,7 +6,7 @@
 
 struct LSM6DSVData {
     float accelMagnitude; // m/s^2
-    float accelDeviation; // degrees from the sensor's Z axis, 0-90
+    float accelDeviation; // signed degrees from upright: 0 when upright, -180 when upside down
 };
 
 class LSM6DSV {

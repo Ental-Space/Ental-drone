@@ -127,6 +127,9 @@ bool LSM6DSV::readAccelerometer(LSM6DSVData &data) {
     const float horizontalMagnitude = sqrtf(accelX * accelX + accelY * accelY);
 
     data.accelMagnitude = sqrtf(horizontalMagnitude * horizontalMagnitude + accelZ * accelZ);
-    data.accelDeviation = atan2f(horizontalMagnitude, fabsf(accelZ)) * ACCEL_RAD_TO_DEG;
+    const float deviationFromVertical = atan2f(horizontalMagnitude, fabsf(accelZ)) * ACCEL_RAD_TO_DEG;
+    data.accelDeviation = accelZ < 0.0f
+        ? -(180.0f - deviationFromVertical)
+        : deviationFromVertical;
     return true;
 }
